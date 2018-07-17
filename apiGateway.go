@@ -218,8 +218,6 @@ func NewServiceProcessor() chan eventbus.ServiceInfo {
 }
 
 func main() {
-	endChan := make(chan int)
-
 	nsqEventbus := eventbus.NewNsqEventBus(env.GetDefaultEnvVar("NSQD_TCP_URL", "localhost:4150"), env.GetDefaultEnvVar("NSQLOOKUP_HTTP_URL", "localhost:4161"))
 
 	serviceInfo := eventbus.ServiceInfo{
@@ -269,6 +267,4 @@ func main() {
 	})
 
 	log.Fatal(http.ListenAndServe(":"+env.GetDefaultEnvVar("PORT", "8090"), nil))
-
-	os.Exit(<-endChan)
 }
