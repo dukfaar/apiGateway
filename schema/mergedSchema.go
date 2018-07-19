@@ -130,7 +130,22 @@ func createQueryResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveP
 		jsonValue, _ := json.Marshal(Request{
 			Query: query,
 		})
-		resp, err := http.Post("http://"+serviceInfo.Hostname+":"+serviceInfo.Port+serviceInfo.GraphQLHttpEndpoint, "application/json", bytes.NewBuffer(jsonValue))
+
+		client := &http.Client{}
+		request, err := http.NewRequest("POST", "http://"+serviceInfo.Hostname+":"+serviceInfo.Port+serviceInfo.GraphQLHttpEndpoint, bytes.NewBuffer(jsonValue))
+		if err != nil {
+			panic(err)
+		}
+
+		authValue := p.Context.Value("Authentication").(string)
+
+		if authValue != "" {
+			request.Header.Add("Authentication", authValue)
+		}
+
+		resp, err := client.Do(request)
+
+		// http.Post(, "application/json", )
 
 		if err != nil {
 			panic(err)

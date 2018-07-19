@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"log"
@@ -92,10 +93,26 @@ func main() {
 			panic(err)
 		}
 
+		var authValue string
+		authCookie, _ := r.Cookie("Authentication")
+
+		ctx := context.Background()
+		if authCookie != nil {
+			authValue = authCookie.Value
+		} else {
+			authHeader := r.Header.Get("Authentication")
+
+			if authHeader != "" {
+				authValue = authHeader
+			}
+		}
+		ctx = context.WithValue(ctx, "Authentication", authValue)
+
 		params := graphql.Params{
 			Schema:         currentSchema,
 			RequestString:  opts.Query,
 			VariableValues: opts.Variables,
+			Context:        ctx,
 		}
 		result := graphql.Do(params)
 

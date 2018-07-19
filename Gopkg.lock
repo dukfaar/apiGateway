@@ -8,7 +8,7 @@
     "env",
     "eventbus"
   ]
-  revision = "97068a1e61cfab329008a1589e6e2380032171ad"
+  revision = "6799b537cfca5a6dfc067674ed42f4d22826aea9"
 
 [[projects]]
   branch = "master"
