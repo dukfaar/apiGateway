@@ -3,6 +3,7 @@ package schema
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -29,6 +30,8 @@ func getScalarTypeDefinition(fieldType *FieldType) graphql.Output {
 	case "Int":
 		return graphql.Int
 	case "DateTime":
+		return graphql.DateTime
+	case "Date":
 		return graphql.DateTime
 	default:
 		panic("Unknown TypeName " + *fieldType.Name)
@@ -70,6 +73,8 @@ func (m *MergedSchemas) scanTypes(typeList []Type) {
 		case "SCALAR":
 			continue
 		case "INPUT_OBJECT":
+			continue
+		case "INTERFACE":
 			continue
 		case "OBJECT":
 			newObject := graphql.NewObject(graphql.ObjectConfig{
@@ -140,12 +145,14 @@ func createQueryResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveP
 		authValue := p.Context.Value("Authentication").(string)
 
 		if authValue != "" {
-			request.Header.Add("Authentication", authValue)
+			request.Header.Add("Authentication", "Bearer "+authValue)
+			request.Header.Add("Authorization", "Bearer "+authValue)
 		}
 
-		resp, err := client.Do(request)
+		request.Header.Add("Accept", "application/json")
+		request.Header.Add("Content-Type", "application/json")
 
-		// http.Post(, "application/json", )
+		resp, err := client.Do(request)
 
 		if err != nil {
 			panic(err)
@@ -154,6 +161,11 @@ func createQueryResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveP
 		defer resp.Body.Close()
 		var result map[string]interface{}
 		json.NewDecoder(resp.Body).Decode(&result)
+
+		if result["errors"] != nil {
+			errorString, _ := json.Marshal(result["errors"])
+			return nil, errors.New(string(errorString))
+		}
 
 		return result["data"].(map[string]interface{})[p.Info.FieldName], nil
 	}
@@ -166,7 +178,24 @@ func createMutationResolver(serviceInfo eventbus.ServiceInfo) func(graphql.Resol
 		jsonValue, _ := json.Marshal(Request{
 			Query: mutation,
 		})
-		resp, err := http.Post("http://"+serviceInfo.Hostname+":"+serviceInfo.Port+serviceInfo.GraphQLHttpEndpoint, "application/json", bytes.NewBuffer(jsonValue))
+
+		client := &http.Client{}
+		request, err := http.NewRequest("POST", "http://"+serviceInfo.Hostname+":"+serviceInfo.Port+serviceInfo.GraphQLHttpEndpoint, bytes.NewBuffer(jsonValue))
+		if err != nil {
+			panic(err)
+		}
+
+		authValue := p.Context.Value("Authentication").(string)
+
+		if authValue != "" {
+			request.Header.Add("Authentication", "Bearer "+authValue)
+			request.Header.Add("Authorization", "Bearer "+authValue)
+		}
+
+		request.Header.Add("Accept", "application/json")
+		request.Header.Add("Content-Type", "application/json")
+
+		resp, err := client.Do(request)
 
 		if err != nil {
 			panic(err)
@@ -175,6 +204,11 @@ func createMutationResolver(serviceInfo eventbus.ServiceInfo) func(graphql.Resol
 		defer resp.Body.Close()
 		var result map[string]interface{}
 		json.NewDecoder(resp.Body).Decode(&result)
+
+		if result["errors"] != nil {
+			errorString, _ := json.Marshal(result["errors"])
+			return nil, errors.New(string(errorString))
+		}
 
 		return result["data"].(map[string]interface{})[p.Info.FieldName], nil
 	}
@@ -206,6 +240,8 @@ func (m *MergedSchemas) scanTypeFields(typeList []Type, serviceInfo eventbus.Ser
 		case "SCALAR":
 			continue
 		case "INPUT_OBJECT":
+			continue
+		case "INTERFACE":
 			continue
 		case "OBJECT":
 			object := m.types[schemaType.Name]

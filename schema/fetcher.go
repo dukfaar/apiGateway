@@ -9,9 +9,9 @@ import (
 )
 
 type Request struct {
-	Query         string                 `json:"query" url:"query" schema:"query"`
-	Variables     map[string]interface{} `json:"variables" url:"variables" schema:"variables"`
-	OperationName string                 `json:"operationName" url:"operationName" schema:"operationName"`
+	Query         string                 `json:"query,omitempty" url:"query" schema:"query"`
+	Variables     map[string]interface{} `json:"variables,omitempty" url:"variables" schema:"variables"`
+	OperationName string                 `json:"operationName,omitempty" url:"operationName" schema:"operationName"`
 }
 
 type Fetcher interface {
