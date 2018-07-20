@@ -128,6 +128,20 @@ func getSourceBody(p graphql.ResolveParams) string {
 	return ""
 }
 
+func setAuthHeaders(p *graphql.ResolveParams, request *http.Request) {
+	authValue := p.Context.Value("Authentication").(string)
+
+	if authValue != "" {
+		request.Header.Add("Authentication", "Bearer "+authValue)
+		request.Header.Add("Authorization", "Bearer "+authValue)
+	}
+}
+
+func setJSONHeaders(request *http.Request) {
+	request.Header.Add("Accept", "application/json")
+	request.Header.Add("Content-Type", "application/json")
+}
+
 func createQueryResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveParams) (interface{}, error) {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		query := "query {" + getSourceBody(p) + "}"
@@ -142,15 +156,8 @@ func createQueryResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveP
 			panic(err)
 		}
 
-		authValue := p.Context.Value("Authentication").(string)
-
-		if authValue != "" {
-			request.Header.Add("Authentication", "Bearer "+authValue)
-			request.Header.Add("Authorization", "Bearer "+authValue)
-		}
-
-		request.Header.Add("Accept", "application/json")
-		request.Header.Add("Content-Type", "application/json")
+		setAuthHeaders(&p, request)
+		setJSONHeaders(request)
 
 		resp, err := client.Do(request)
 
@@ -166,7 +173,6 @@ func createQueryResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveP
 			errorString, _ := json.Marshal(result["errors"])
 			return nil, errors.New(string(errorString))
 		}
-
 		return result["data"].(map[string]interface{})[p.Info.FieldName], nil
 	}
 }
@@ -185,15 +191,8 @@ func createMutationResolver(serviceInfo eventbus.ServiceInfo) func(graphql.Resol
 			panic(err)
 		}
 
-		authValue := p.Context.Value("Authentication").(string)
-
-		if authValue != "" {
-			request.Header.Add("Authentication", "Bearer "+authValue)
-			request.Header.Add("Authorization", "Bearer "+authValue)
-		}
-
-		request.Header.Add("Accept", "application/json")
-		request.Header.Add("Content-Type", "application/json")
+		setAuthHeaders(&p, request)
+		setJSONHeaders(request)
 
 		resp, err := client.Do(request)
 
