@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -15,19 +16,21 @@ import (
 	"github.com/graphql-go/graphql"
 
 	"github.com/dukfaar/apiGateway/schema"
+	dukGraphql "github.com/dukfaar/goUtils/graphql"
 )
 
 var mergedSchemas schema.MergedSchemas
 var currentSchema graphql.Schema
 
 func ProcessServiceUp(serviceInfo eventbus.ServiceInfo) {
-	jsonValue, _ := json.Marshal(schema.Request{
+	jsonValue, _ := json.Marshal(dukGraphql.Request{
 		Query: IntrospectionQuery,
 	})
 	resp, err := http.Post("http://"+serviceInfo.Hostname+":"+serviceInfo.Port+serviceInfo.GraphQLHttpEndpoint, "application/json", bytes.NewBuffer(jsonValue))
 
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
+		return
 	}
 
 	defer resp.Body.Close()
@@ -37,11 +40,14 @@ func ProcessServiceUp(serviceInfo eventbus.ServiceInfo) {
 
 	mergedSchemas.AddService(serviceInfo, schemaResponse)
 
-	currentSchema, err = mergedSchemas.BuildSchema()
+	newCurrentSchema, err := mergedSchemas.BuildSchema()
 
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
+		return
 	}
+
+	currentSchema = newCurrentSchema
 }
 
 func NewServiceProcessor() chan eventbus.ServiceInfo {
@@ -60,9 +66,10 @@ func main() {
 	nsqEventbus := eventbus.NewNsqEventBus(env.GetDefaultEnvVar("NSQD_TCP_URL", "localhost:4150"), env.GetDefaultEnvVar("NSQLOOKUP_HTTP_URL", "localhost:4161"))
 
 	serviceInfo := eventbus.ServiceInfo{
-		Name:     "apigateway",
-		Hostname: env.GetDefaultEnvVar("PUBLISHED_HOSTNAME", "apigateway"),
-		Port:     env.GetDefaultEnvVar("PUBLISHED_PORT", "8080"),
+		Name:                "apigateway",
+		Hostname:            env.GetDefaultEnvVar("PUBLISHED_HOSTNAME", "apigateway"),
+		Port:                env.GetDefaultEnvVar("PUBLISHED_PORT", "8080"),
+		GraphQLHttpEndpoint: "/graphql",
 	}
 
 	hostname, _ := os.Hostname()
@@ -86,7 +93,7 @@ func main() {
 		body, _ := ioutil.ReadAll(r.Body)
 		defer r.Body.Close()
 
-		var opts schema.Request
+		var opts dukGraphql.Request
 		err := json.Unmarshal(body, &opts)
 
 		if err != nil {

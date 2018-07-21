@@ -4,11 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/dukfaar/goUtils/eventbus"
+	dukGraphql "github.com/dukfaar/goUtils/graphql"
 	"github.com/graphql-go/graphql"
+	"github.com/graphql-go/graphql/language/ast"
 )
 
 type MergedSchemas struct {
@@ -16,6 +20,45 @@ type MergedSchemas struct {
 	types          map[string]*graphql.Object
 	inputTypes     map[string]*graphql.InputObject
 }
+
+func serializeDate(value interface{}) interface{} {
+	switch value := value.(type) {
+	case time.Time:
+		buff, err := value.MarshalText()
+		if err != nil {
+			return nil
+		}
+
+		return string(buff)
+	case *time.Time:
+		return serializeDate(*value)
+	case string:
+		return value
+	case *string:
+		return *value
+	default:
+		return nil
+	}
+}
+
+func deserializeDate(value interface{}) interface{} {
+	fmt.Println(value)
+	return nil
+}
+
+var dataScalar *graphql.Scalar = graphql.NewScalar(graphql.ScalarConfig{
+	Name:        "Date",
+	Description: "The `Date` scalar type represents a Date.",
+	Serialize:   serializeDate,
+	ParseValue:  deserializeDate,
+	ParseLiteral: func(valueAST ast.Value) interface{} {
+		switch valueAST := valueAST.(type) {
+		case *ast.StringValue:
+			return valueAST.Value
+		}
+		return nil
+	},
+})
 
 func getScalarTypeDefinition(fieldType *FieldType) graphql.Output {
 	switch *fieldType.Name {
@@ -32,7 +75,7 @@ func getScalarTypeDefinition(fieldType *FieldType) graphql.Output {
 	case "DateTime":
 		return graphql.DateTime
 	case "Date":
-		return graphql.DateTime
+		return dataScalar
 	default:
 		panic("Unknown TypeName " + *fieldType.Name)
 	}
@@ -132,8 +175,8 @@ func setAuthHeaders(p *graphql.ResolveParams, request *http.Request) {
 	authValue := p.Context.Value("Authentication").(string)
 
 	if authValue != "" {
-		request.Header.Add("Authentication", "Bearer "+authValue)
-		request.Header.Add("Authorization", "Bearer "+authValue)
+		request.Header.Add("Authentication", authValue)
+		request.Header.Add("Authorization", authValue)
 	}
 }
 
@@ -146,7 +189,7 @@ func createQueryResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveP
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		query := "query {" + getSourceBody(p) + "}"
 
-		jsonValue, _ := json.Marshal(Request{
+		jsonValue, _ := json.Marshal(dukGraphql.Request{
 			Query: query,
 		})
 
@@ -181,7 +224,7 @@ func createMutationResolver(serviceInfo eventbus.ServiceInfo) func(graphql.Resol
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		mutation := "mutation {" + getSourceBody(p) + "}"
 
-		jsonValue, _ := json.Marshal(Request{
+		jsonValue, _ := json.Marshal(dukGraphql.Request{
 			Query: mutation,
 		})
 
