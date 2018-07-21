@@ -6,9 +6,10 @@
   name = "github.com/dukfaar/goUtils"
   packages = [
     "env",
-    "eventbus"
+    "eventbus",
+    "graphql"
   ]
-  revision = "6799b537cfca5a6dfc067674ed42f4d22826aea9"
+  revision = "4f612b93f83debbd537eae149f4f13120a99acfe"
 
 [[projects]]
   branch = "master"
@@ -21,6 +22,26 @@
   packages = ["."]
   revision = "ea4d1f681babbce9545c9c5f3d5194a789c89f5b"
   version = "v1.2.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/graph-gophers/graphql-go"
+  packages = [
+    ".",
+    "errors",
+    "internal/common",
+    "internal/exec",
+    "internal/exec/packer",
+    "internal/exec/resolvable",
+    "internal/exec/selected",
+    "internal/query",
+    "internal/schema",
+    "internal/validation",
+    "introspection",
+    "log",
+    "trace"
+  ]
+  revision = "bb9738501bd42a6536227b96068349b814379d6e"
 
 [[projects]]
   name = "github.com/graphql-go/graphql"
@@ -46,9 +67,25 @@
   revision = "eee57a3ac4174c55924125bb15eeeda8cffb6e6f"
   version = "v1.0.7"
 
+[[projects]]
+  name = "github.com/opentracing/opentracing-go"
+  packages = [
+    ".",
+    "ext",
+    "log"
+  ]
+  revision = "1949ddbfd147afd4d964a9f00b24eb291e0e7c38"
+  version = "v1.0.2"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/net"
+  packages = ["context"]
+  revision = "a680a1efc54dd51c040b3b5ce4939ea3cf2ea0d1"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "6cf71bef960cf453f3e9c3c234ca7d93381f928f60f19d6fed17442974e95e23"
+  inputs-digest = "e9b44a5b475dcfcfd5083d2cf9281e9c080d5ce003cff6614e6aaa1d4eb136b5"
   solver-name = "gps-cdcl"
   solver-version = 1
