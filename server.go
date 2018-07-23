@@ -119,6 +119,7 @@ func main() {
 			Schema:         currentSchema,
 			RequestString:  opts.Query,
 			VariableValues: opts.Variables,
+			OperationName:  opts.OperationName,
 			Context:        ctx,
 		}
 		result := graphql.Do(params)
