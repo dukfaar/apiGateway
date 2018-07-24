@@ -12,6 +12,7 @@ import (
 
 	"github.com/dukfaar/goUtils/env"
 	"github.com/dukfaar/goUtils/eventbus"
+	"github.com/gorilla/websocket"
 
 	"github.com/graphql-go/graphql"
 
@@ -127,6 +128,96 @@ func main() {
 		w.Header().Add("Content-Type", "application/json; charset=utf-8")
 		buff, _ := json.Marshal(result)
 		w.Write(buff)
+	})
+
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
+
+	http.HandleFunc("/socket", func(w http.ResponseWriter, r *http.Request) {
+		protocols := websocket.Subprotocols(r)
+		var header http.Header = make(http.Header)
+		header["Sec-WebSocket-Protocol"] = protocols
+		connection, upgradeError := upgrader.Upgrade(w, r, header)
+
+		if upgradeError != nil {
+			log.Println(upgradeError)
+			return
+		}
+
+		var authValue string
+		authCookie, _ := r.Cookie("Authentication")
+
+		ctx := context.Background()
+		if authCookie != nil {
+			authValue = authCookie.Value
+		} else {
+			authHeader := r.Header.Get("Authentication")
+
+			if authHeader != "" {
+				authValue = authHeader
+			}
+		}
+		ctx = context.WithValue(ctx, "Authentication", authValue)
+
+		for {
+			msgType, message, error := connection.ReadMessage()
+
+			if error != nil {
+				return
+			}
+
+			var socketRequest struct {
+				Id      string             `json:"id,omitempty"`
+				Type    string             `json:"type,omitempty"`
+				Payload dukGraphql.Request `json:"payload,omitempty"`
+			}
+
+			if err := json.Unmarshal(message, &socketRequest); err != nil {
+				errorResponse, _ := json.Marshal(err)
+				connection.WriteMessage(msgType, errorResponse)
+			}
+
+			var socketResponse struct {
+				Id      string      `json:"id,omitempty"`
+				Type    string      `json:"type,omitempty"`
+				Payload interface{} `json:"payload,omitempty"`
+			}
+
+			socketResponse.Id = socketRequest.Id
+			socketResponse.Type = socketRequest.Type
+
+			switch socketRequest.Type {
+			case "connection_init":
+				socketResponse.Type = "connection_ack"
+				socketResponse.Payload = "ACK"
+			case "start":
+				params := graphql.Params{
+					Schema:         currentSchema,
+					RequestString:  socketRequest.Payload.Query,
+					VariableValues: socketRequest.Payload.Variables,
+					OperationName:  socketRequest.Payload.OperationName,
+					Context:        ctx,
+				}
+				socketResponse.Type = "data"
+				socketResponse.Payload = graphql.Do(params)
+			}
+
+			responseJSON, err := json.Marshal(socketResponse)
+			if err != nil {
+				errorResponse, _ := json.Marshal(err)
+				connection.WriteMessage(msgType, errorResponse)
+			}
+
+			if error = connection.WriteMessage(msgType, responseJSON); error != nil {
+				errorResponse, _ := json.Marshal(error)
+				connection.WriteMessage(msgType, errorResponse)
+			}
+		}
 	})
 
 	log.Fatal(http.ListenAndServe(":"+env.GetDefaultEnvVar("PORT", "8090"), nil))
