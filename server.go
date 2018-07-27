@@ -63,6 +63,25 @@ func NewServiceProcessor() chan eventbus.ServiceInfo {
 	return newServiceChannel
 }
 
+func GetAuthValue(r *http.Request) string {
+	authCookie, _ := r.Cookie("Authentication")
+	if authCookie != nil {
+		return authCookie.Value
+	}
+
+	authCookie, _ = r.Cookie("Authorization")
+	if authCookie != nil {
+		return authCookie.Value
+	}
+
+	authHeader := r.Header.Get("Authentication")
+	if authHeader != "" {
+		return authHeader
+	}
+
+	return ""
+}
+
 func main() {
 	nsqEventbus := eventbus.NewNsqEventBus(env.GetDefaultEnvVar("NSQD_TCP_URL", "localhost:4150"), env.GetDefaultEnvVar("NSQLOOKUP_HTTP_URL", "localhost:4161"))
 
@@ -101,20 +120,8 @@ func main() {
 			panic(err)
 		}
 
-		var authValue string
-		authCookie, _ := r.Cookie("Authentication")
-
 		ctx := context.Background()
-		if authCookie != nil {
-			authValue = authCookie.Value
-		} else {
-			authHeader := r.Header.Get("Authentication")
-
-			if authHeader != "" {
-				authValue = authHeader
-			}
-		}
-		ctx = context.WithValue(ctx, "Authentication", authValue)
+		ctx = context.WithValue(ctx, "Authentication", GetAuthValue(r))
 
 		params := graphql.Params{
 			Schema:         currentSchema,
@@ -149,20 +156,8 @@ func main() {
 			return
 		}
 
-		var authValue string
-		authCookie, _ := r.Cookie("Authentication")
-
 		ctx := context.Background()
-		if authCookie != nil {
-			authValue = authCookie.Value
-		} else {
-			authHeader := r.Header.Get("Authentication")
-
-			if authHeader != "" {
-				authValue = authHeader
-			}
-		}
-		ctx = context.WithValue(ctx, "Authentication", authValue)
+		ctx = context.WithValue(ctx, "Authentication", GetAuthValue(r))
 
 		for {
 			msgType, message, error := connection.ReadMessage()

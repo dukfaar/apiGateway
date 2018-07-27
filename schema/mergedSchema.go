@@ -187,10 +187,24 @@ func setJSONHeaders(request *http.Request) {
 
 func createQueryResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveParams) (interface{}, error) {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		query := "query {" + getSourceBody(p) + "}"
+		queryArgs := ""
+
+		variableDefs := p.Info.Operation.GetVariableDefinitions()
+		if len(variableDefs) > 0 {
+			varStrings := make([]string, 0)
+			for i := range variableDefs {
+				varDef := variableDefs[i]
+
+				varStrings = append(varStrings, string(varDef.Loc.Source.Body)[varDef.Loc.Start:varDef.Loc.End])
+			}
+
+			queryArgs = "(" + strings.Join(varStrings, ",") + ")"
+		}
+		query := "query" + queryArgs + " {" + getSourceBody(p) + "}"
 
 		jsonValue, _ := json.Marshal(dukGraphql.Request{
-			Query: query,
+			Query:     query,
+			Variables: p.Info.VariableValues,
 		})
 
 		client := &http.Client{}
