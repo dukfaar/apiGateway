@@ -18,6 +18,8 @@ import (
 
 	"github.com/dukfaar/apiGateway/schema"
 	dukGraphql "github.com/dukfaar/goUtils/graphql"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var mergedSchemas schema.MergedSchemas
@@ -214,6 +216,8 @@ func main() {
 			}
 		}
 	})
+
+	http.Handle("/metrics", promhttp.Handler())
 
 	log.Fatal(http.ListenAndServe(":"+env.GetDefaultEnvVar("PORT", "8090"), nil))
 }
