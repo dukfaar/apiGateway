@@ -11,14 +11,6 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:f524c57696368d67c6b84b7f3b386ba8471002c84b0ffb5908199e6e2d7304c1"
-  name = "github.com/dukfaar/apiGateway"
-  packages = ["schema"]
-  pruneopts = "UT"
-  revision = "09dbd2c802b28ba5dcf7de725e1bd98eb5907bca"
-
-[[projects]]
-  branch = "master"
   digest = "1:bcf6fc5d0ae71f21694e5939cb7df00657798966ba2ae7ef2799281c7126ddfd"
   name = "github.com/dukfaar/goUtils"
   packages = [
@@ -179,7 +171,6 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "github.com/dukfaar/apiGateway/schema",
     "github.com/dukfaar/goUtils/env",
     "github.com/dukfaar/goUtils/eventbus",
     "github.com/dukfaar/goUtils/graphql",

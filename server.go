@@ -8,8 +8,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"net/url"
+	"os"
 
 	"github.com/dukfaar/goUtils/env"
 	"github.com/dukfaar/goUtils/eventbus"
@@ -146,7 +146,6 @@ func main() {
 			Context:        ctx,
 		}
 		result := graphql.Do(params)
-
 		w.Header().Add("Content-Type", "application/json; charset=utf-8")
 		buff, _ := json.Marshal(result)
 		w.Write(buff)
@@ -171,13 +170,17 @@ func main() {
 			return
 		}
 
+		fmt.Println("opened new socket-connection")
+		defer fmt.Println("closed socket-connection")
+
 		ctx := context.Background()
 		ctx = context.WithValue(ctx, "Authentication", GetAuthValue(r))
 
 		for {
-			msgType, message, error := connection.ReadMessage()
+			msgType, message, err := connection.ReadMessage()
 
-			if error != nil {
+			if err != nil {
+				fmt.Println(err)
 				return
 			}
 
@@ -187,7 +190,7 @@ func main() {
 				Payload dukGraphql.Request `json:"payload,omitempty"`
 			}
 
-			if err := json.Unmarshal(message, &socketRequest); err != nil {
+			if err = json.Unmarshal(message, &socketRequest); err != nil {
 				errorResponse, _ := json.Marshal(err)
 				connection.WriteMessage(msgType, errorResponse)
 			}
@@ -205,6 +208,8 @@ func main() {
 			case "connection_init":
 				socketResponse.Type = "connection_ack"
 				socketResponse.Payload = "ACK"
+			case "connection_terminate":
+				return
 			case "start":
 				params := graphql.Params{
 					Schema:         currentSchema,
@@ -215,6 +220,10 @@ func main() {
 				}
 				socketResponse.Type = "data"
 				socketResponse.Payload = graphql.Do(params)
+			case "stop":
+				continue
+			default:
+				panic("Unknown socket-request-type: " + socketRequest.Type)
 			}
 
 			responseJSON, err := json.Marshal(socketResponse)
@@ -223,8 +232,8 @@ func main() {
 				connection.WriteMessage(msgType, errorResponse)
 			}
 
-			if error = connection.WriteMessage(msgType, responseJSON); error != nil {
-				errorResponse, _ := json.Marshal(error)
+			if err = connection.WriteMessage(msgType, responseJSON); err != nil {
+				errorResponse, _ := json.Marshal(err)
 				connection.WriteMessage(msgType, errorResponse)
 			}
 		}

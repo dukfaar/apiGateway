@@ -190,6 +190,8 @@ func createQueryResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveP
 		queryArgs := ""
 
 		variableDefs := p.Info.Operation.GetVariableDefinitions()
+
+		//TODO, only add variables that are used for this query
 		if len(variableDefs) > 0 {
 			varStrings := make([]string, 0)
 			for i := range variableDefs {
@@ -200,7 +202,16 @@ func createQueryResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveP
 
 			queryArgs = "(" + strings.Join(varStrings, ",") + ")"
 		}
-		query := "query" + queryArgs + " {" + getSourceBody(p) + "}"
+
+		fragments := ""
+
+		//TODO, only add fragments that are used for this query
+		for fragmentName := range p.Info.Fragments {
+			loc := p.Info.Fragments[fragmentName].GetLoc()
+			fragments += string(loc.Source.Body[loc.Start:loc.End])
+		}
+
+		query := "query" + queryArgs + " {" + getSourceBody(p) + "}" + fragments
 
 		jsonValue, _ := json.Marshal(dukGraphql.Request{
 			Query:     query,
