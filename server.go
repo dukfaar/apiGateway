@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"net/url"
 
 	"github.com/dukfaar/goUtils/env"
 	"github.com/dukfaar/goUtils/eventbus"
@@ -68,17 +69,29 @@ func NewServiceProcessor() chan eventbus.ServiceInfo {
 func GetAuthValue(r *http.Request) string {
 	authCookie, _ := r.Cookie("Authentication")
 	if authCookie != nil {
-		return authCookie.Value
+		result, err := url.QueryUnescape(authCookie.Value)
+		if err != nil {
+			return ""
+		}
+		return result
 	}
 
 	authCookie, _ = r.Cookie("Authorization")
 	if authCookie != nil {
-		return authCookie.Value
+		result, err := url.QueryUnescape(authCookie.Value)
+		if err != nil {
+			return ""
+		}
+		return result
 	}
 
 	authHeader := r.Header.Get("Authentication")
 	if authHeader != "" {
-		return authHeader
+		result, err := url.QueryUnescape(authHeader)
+		if err != nil {
+			return ""
+		}
+		return result
 	}
 
 	return ""

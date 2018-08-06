@@ -15,11 +15,11 @@
   name = "github.com/dukfaar/apiGateway"
   packages = ["schema"]
   pruneopts = "UT"
-  revision = "abbbec552c908d432094b203a37faa86c6bb015e"
+  revision = "09dbd2c802b28ba5dcf7de725e1bd98eb5907bca"
 
 [[projects]]
   branch = "master"
-  digest = "1:2aae6a652c0560742f11c5d3ff26f002a2caa19660489c351c32f1d2ac444e86"
+  digest = "1:bcf6fc5d0ae71f21694e5939cb7df00657798966ba2ae7ef2799281c7126ddfd"
   name = "github.com/dukfaar/goUtils"
   packages = [
     "env",
@@ -27,7 +27,7 @@
     "graphql",
   ]
   pruneopts = "UT"
-  revision = "4f612b93f83debbd537eae149f4f13120a99acfe"
+  revision = "29568234700b81b5ba91da828418dd80bd02e348"
 
 [[projects]]
   digest = "1:15042ad3498153684d09f393bbaec6b216c8eec6d61f63dff711de7d64ed8861"
@@ -173,7 +173,7 @@
   name = "golang.org/x/net"
   packages = ["context"]
   pruneopts = "UT"
-  revision = "a680a1efc54dd51c040b3b5ce4939ea3cf2ea0d1"
+  revision = "f4c29de78a2a91c00474a2e689954305c350adf9"
 
 [solve-meta]
   analyzer-name = "dep"
