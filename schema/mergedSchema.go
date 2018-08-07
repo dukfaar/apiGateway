@@ -185,33 +185,39 @@ func setJSONHeaders(request *http.Request) {
 	request.Header.Add("Content-Type", "application/json")
 }
 
+func getQueryArgs(p graphql.ResolveParams) string {
+	variableDefs := p.Info.Operation.GetVariableDefinitions()
+
+	//TODO, only add variables that are used for this query
+	if len(variableDefs) > 0 {
+		varStrings := make([]string, 0)
+		for i := range variableDefs {
+			varDef := variableDefs[i]
+
+			varStrings = append(varStrings, string(varDef.Loc.Source.Body)[varDef.Loc.Start:varDef.Loc.End])
+		}
+
+		return "(" + strings.Join(varStrings, ",") + ")"
+	}
+
+	return ""
+}
+
+func getFragments(p graphql.ResolveParams) string {
+	fragments := ""
+
+	//TODO, only add fragments that are used for this query
+	for fragmentName := range p.Info.Fragments {
+		loc := p.Info.Fragments[fragmentName].GetLoc()
+		fragments += string(loc.Source.Body[loc.Start:loc.End])
+	}
+
+	return fragments
+}
+
 func createQueryResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveParams) (interface{}, error) {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		queryArgs := ""
-
-		variableDefs := p.Info.Operation.GetVariableDefinitions()
-
-		//TODO, only add variables that are used for this query
-		if len(variableDefs) > 0 {
-			varStrings := make([]string, 0)
-			for i := range variableDefs {
-				varDef := variableDefs[i]
-
-				varStrings = append(varStrings, string(varDef.Loc.Source.Body)[varDef.Loc.Start:varDef.Loc.End])
-			}
-
-			queryArgs = "(" + strings.Join(varStrings, ",") + ")"
-		}
-
-		fragments := ""
-
-		//TODO, only add fragments that are used for this query
-		for fragmentName := range p.Info.Fragments {
-			loc := p.Info.Fragments[fragmentName].GetLoc()
-			fragments += string(loc.Source.Body[loc.Start:loc.End])
-		}
-
-		query := "query" + queryArgs + " {" + getSourceBody(p) + "}" + fragments
+		query := "query" + getQueryArgs(p) + " {" + getSourceBody(p) + "}" + getFragments(p)
 
 		jsonValue, _ := json.Marshal(dukGraphql.Request{
 			Query:     query,
@@ -247,7 +253,7 @@ func createQueryResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveP
 
 func createMutationResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveParams) (interface{}, error) {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		mutation := "mutation {" + getSourceBody(p) + "}"
+		mutation := "mutation " + getQueryArgs(p) + "{" + getSourceBody(p) + "}" + getFragments(p)
 
 		jsonValue, _ := json.Marshal(dukGraphql.Request{
 			Query: mutation,
