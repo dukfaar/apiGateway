@@ -215,39 +215,47 @@ func getFragments(p graphql.ResolveParams) string {
 	return fragments
 }
 
+func performRequest(serviceInfo eventbus.ServiceInfo, p graphql.ResolveParams, query string) (*http.Response, error) {
+	jsonValue, _ := json.Marshal(dukGraphql.Request{
+		Query:     query,
+		Variables: p.Info.VariableValues,
+	})
+
+	client := &http.Client{}
+	request, err := http.NewRequest("POST", "http://"+serviceInfo.Hostname+":"+serviceInfo.Port+serviceInfo.GraphQLHttpEndpoint, bytes.NewBuffer(jsonValue))
+	if err != nil {
+		panic(err)
+	}
+
+	setAuthHeaders(&p, request)
+	setJSONHeaders(request)
+
+	return client.Do(request)
+}
+
+func handleRequestResult(p graphql.ResolveParams, resp *http.Response, err error) (interface{}, error) {
+	if err != nil {
+		panic(err)
+	}
+
+	defer resp.Body.Close()
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	if result["errors"] != nil {
+		errorString, _ := json.Marshal(result["errors"])
+		return nil, errors.New(string(errorString))
+	}
+	return result["data"].(map[string]interface{})[p.Info.FieldName], nil
+}
+
 func createQueryResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveParams) (interface{}, error) {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		query := "query" + getQueryArgs(p) + " {" + getSourceBody(p) + "}" + getFragments(p)
 
-		jsonValue, _ := json.Marshal(dukGraphql.Request{
-			Query:     query,
-			Variables: p.Info.VariableValues,
-		})
+		resp, err := performRequest(serviceInfo, p, query)
 
-		client := &http.Client{}
-		request, err := http.NewRequest("POST", "http://"+serviceInfo.Hostname+":"+serviceInfo.Port+serviceInfo.GraphQLHttpEndpoint, bytes.NewBuffer(jsonValue))
-		if err != nil {
-			panic(err)
-		}
-
-		setAuthHeaders(&p, request)
-		setJSONHeaders(request)
-
-		resp, err := client.Do(request)
-
-		if err != nil {
-			panic(err)
-		}
-
-		defer resp.Body.Close()
-		var result map[string]interface{}
-		json.NewDecoder(resp.Body).Decode(&result)
-
-		if result["errors"] != nil {
-			errorString, _ := json.Marshal(result["errors"])
-			return nil, errors.New(string(errorString))
-		}
-		return result["data"].(map[string]interface{})[p.Info.FieldName], nil
+		return handleRequestResult(p, resp, err)
 	}
 }
 
@@ -255,35 +263,9 @@ func createMutationResolver(serviceInfo eventbus.ServiceInfo) func(graphql.Resol
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		mutation := "mutation " + getQueryArgs(p) + "{" + getSourceBody(p) + "}" + getFragments(p)
 
-		jsonValue, _ := json.Marshal(dukGraphql.Request{
-			Query: mutation,
-		})
+		resp, err := performRequest(serviceInfo, p, mutation)
 
-		client := &http.Client{}
-		request, err := http.NewRequest("POST", "http://"+serviceInfo.Hostname+":"+serviceInfo.Port+serviceInfo.GraphQLHttpEndpoint, bytes.NewBuffer(jsonValue))
-		if err != nil {
-			panic(err)
-		}
-
-		setAuthHeaders(&p, request)
-		setJSONHeaders(request)
-
-		resp, err := client.Do(request)
-
-		if err != nil {
-			panic(err)
-		}
-
-		defer resp.Body.Close()
-		var result map[string]interface{}
-		json.NewDecoder(resp.Body).Decode(&result)
-
-		if result["errors"] != nil {
-			errorString, _ := json.Marshal(result["errors"])
-			return nil, errors.New(string(errorString))
-		}
-
-		return result["data"].(map[string]interface{})[p.Info.FieldName], nil
+		return handleRequestResult(p, resp, err)
 	}
 }
 
