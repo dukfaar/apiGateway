@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gorilla/websocket"
+
 	"github.com/dukfaar/goUtils/eventbus"
 	dukGraphql "github.com/dukfaar/goUtils/graphql"
 	"github.com/graphql-go/graphql"
@@ -252,8 +254,10 @@ func handleRequestResult(p graphql.ResolveParams, resp *http.Response, err error
 func createQueryResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveParams) (interface{}, error) {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		query := "query" + getQueryArgs(p) + " {" + getSourceBody(p) + "}" + getFragments(p)
+		fmt.Println(query)
 
 		resp, err := performRequest(serviceInfo, p, query)
+		fmt.Println(err)
 
 		return handleRequestResult(p, resp, err)
 	}
@@ -360,8 +364,40 @@ func (m *MergedSchemas) AddService(serviceInfo eventbus.ServiceInfo, schemaRespo
 		m.serviceSchemas = make(map[string]RemoteSchema)
 	}
 
+	var websocketUrl = "ws://" + serviceInfo.Hostname + ":" + serviceInfo.Port + serviceInfo.GraphQLSocketEndpoint
+	fmt.Println(websocketUrl)
+
+	c, _, err := websocket.DefaultDialer.Dial(websocketUrl, nil)
+
+	if err != nil {
+		fmt.Println("Error connection to socket of service")
+		fmt.Println(err)
+		return
+	}
+
+	c.SetCloseHandler(func(code int, text string) error {
+		fmt.Println("Connection closed")
+		fmt.Println(text)
+
+		//todo remove service
+		return nil
+	})
+
+	go func() {
+		defer c.Close()
+
+		for {
+			_, _, err := c.ReadMessage()
+
+			if err != nil {
+				return
+			}
+		}
+	}()
+
 	m.serviceSchemas[serviceInfo.Name] = RemoteSchema{
 		ServiceInfo:    serviceInfo,
 		SchemaResponse: schemaResponse,
 	}
+
 }
