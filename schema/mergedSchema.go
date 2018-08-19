@@ -254,10 +254,8 @@ func handleRequestResult(p graphql.ResolveParams, resp *http.Response, err error
 func createQueryResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveParams) (interface{}, error) {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		query := "query" + getQueryArgs(p) + " {" + getSourceBody(p) + "}" + getFragments(p)
-		fmt.Println(query)
 
 		resp, err := performRequest(serviceInfo, p, query)
-		fmt.Println(err)
 
 		return handleRequestResult(p, resp, err)
 	}
@@ -359,11 +357,7 @@ func (m *MergedSchemas) BuildSchema() (graphql.Schema, error) {
 	return schema, nil
 }
 
-func (m *MergedSchemas) AddService(serviceInfo eventbus.ServiceInfo, schemaResponse Response) {
-	if m.serviceSchemas == nil {
-		m.serviceSchemas = make(map[string]RemoteSchema)
-	}
-
+func (m *MergedSchemas) monitorService(serviceInfo eventbus.ServiceInfo, schemaResponse Response) {
 	var websocketUrl = "ws://" + serviceInfo.Hostname + ":" + serviceInfo.Port + serviceInfo.GraphQLSocketEndpoint
 	fmt.Println(websocketUrl)
 
@@ -376,7 +370,7 @@ func (m *MergedSchemas) AddService(serviceInfo eventbus.ServiceInfo, schemaRespo
 	}
 
 	c.SetCloseHandler(func(code int, text string) error {
-		fmt.Println("Connection closed")
+		fmt.Printf("Connection closed to service %s(%v)\n", serviceInfo.Name, code)
 		fmt.Println(text)
 
 		//todo remove service
@@ -387,17 +381,25 @@ func (m *MergedSchemas) AddService(serviceInfo eventbus.ServiceInfo, schemaRespo
 		defer c.Close()
 
 		for {
-			_, _, err := c.ReadMessage()
+			msgType, msg, err := c.ReadMessage()
+			fmt.Printf("msg from %s(%v): %s\n", serviceInfo.Name, msgType, string(msg))
 
 			if err != nil {
 				return
 			}
 		}
 	}()
+}
+
+func (m *MergedSchemas) AddService(serviceInfo eventbus.ServiceInfo, schemaResponse Response) {
+	if m.serviceSchemas == nil {
+		m.serviceSchemas = make(map[string]RemoteSchema)
+	}
 
 	m.serviceSchemas[serviceInfo.Name] = RemoteSchema{
 		ServiceInfo:    serviceInfo,
 		SchemaResponse: schemaResponse,
 	}
 
+	m.monitorService(serviceInfo, schemaResponse)
 }
