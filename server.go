@@ -23,10 +23,27 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-var mergedSchemas schema.MergedSchemas
-var currentSchema graphql.Schema
+type ServiceProcessor struct {
+	MergedSchemas schema.MergedSchemas
+	CurrentSchema graphql.Schema
 
-func ProcessServiceUp(serviceInfo eventbus.ServiceInfo) {
+	ServiceChannel chan eventbus.ServiceInfo
+}
+
+func (p *ServiceProcessor) processResponse(serviceInfo eventbus.ServiceInfo, response schema.Response) {
+	p.MergedSchemas.AddService(serviceInfo, response)
+
+	newCurrentSchema, err := p.MergedSchemas.BuildSchema()
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	p.CurrentSchema = newCurrentSchema
+}
+
+func (p *ServiceProcessor) serviceUp(serviceInfo eventbus.ServiceInfo) {
 	jsonValue, _ := json.Marshal(dukGraphql.Request{
 		Query: IntrospectionQuery,
 	})
@@ -42,28 +59,25 @@ func ProcessServiceUp(serviceInfo eventbus.ServiceInfo) {
 	var schemaResponse schema.Response
 	json.NewDecoder(resp.Body).Decode(&schemaResponse)
 
-	mergedSchemas.AddService(serviceInfo, schemaResponse)
-
-	newCurrentSchema, err := mergedSchemas.BuildSchema()
-
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	currentSchema = newCurrentSchema
+	p.processResponse(serviceInfo, schemaResponse)
 }
 
-func NewServiceProcessor() chan eventbus.ServiceInfo {
-	newServiceChannel := make(chan eventbus.ServiceInfo)
-
+func (p *ServiceProcessor) StartChannelWatcher() {
 	go func() {
 		for {
-			ProcessServiceUp(<-newServiceChannel)
+			p.serviceUp(<-p.ServiceChannel)
 		}
 	}()
+}
 
-	return newServiceChannel
+func NewServiceProcessor() *ServiceProcessor {
+	var newProcessor = &ServiceProcessor{
+		ServiceChannel: make(chan eventbus.ServiceInfo),
+	}
+
+	newProcessor.StartChannelWatcher()
+
+	return newProcessor
 }
 
 func GetAuthValue(r *http.Request) string {
@@ -109,14 +123,14 @@ func main() {
 
 	hostname, _ := os.Hostname()
 
-	newServiceChannel := NewServiceProcessor()
+	newServiceProcessor := NewServiceProcessor()
 
 	nsqEventbus.On("service.up", "apigateway_"+hostname, func(msg []byte) error {
 		newService := eventbus.ServiceInfo{}
 		json.Unmarshal(msg, &newService)
 
 		if newService.Name != "apigateway" && len(newService.GraphQLHttpEndpoint) > 0 {
-			newServiceChannel <- newService
+			newServiceProcessor.ServiceChannel <- newService
 		}
 
 		return nil
@@ -132,14 +146,15 @@ func main() {
 		err := json.Unmarshal(body, &opts)
 
 		if err != nil {
-			panic(err)
+			fmt.Printf("Error unmarshaling request; body:\"%v\"\n", string(body))
+			return
 		}
 
 		ctx := context.Background()
 		ctx = context.WithValue(ctx, "Authentication", GetAuthValue(r))
 
 		params := graphql.Params{
-			Schema:         currentSchema,
+			Schema:         newServiceProcessor.CurrentSchema,
 			RequestString:  opts.Query,
 			VariableValues: opts.Variables,
 			OperationName:  opts.OperationName,
@@ -148,6 +163,8 @@ func main() {
 		result := graphql.Do(params)
 		w.Header().Add("Content-Type", "application/json; charset=utf-8")
 		buff, _ := json.Marshal(result)
+
+		fmt.Println(result)
 		w.Write(buff)
 	})
 
@@ -212,7 +229,7 @@ func main() {
 				return
 			case "start":
 				params := graphql.Params{
-					Schema:         currentSchema,
+					Schema:         newServiceProcessor.CurrentSchema,
 					RequestString:  socketRequest.Payload.Query,
 					VariableValues: socketRequest.Payload.Variables,
 					OperationName:  socketRequest.Payload.OperationName,

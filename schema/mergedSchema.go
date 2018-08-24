@@ -351,6 +351,7 @@ func (m *MergedSchemas) BuildSchema() (graphql.Schema, error) {
 	schema, err := graphql.NewSchema(schemaConfig)
 
 	if err != nil {
+		fmt.Printf("Error creating schema: %v\n", err)
 		return graphql.Schema{}, err
 	}
 
@@ -401,5 +402,5 @@ func (m *MergedSchemas) AddService(serviceInfo eventbus.ServiceInfo, schemaRespo
 		SchemaResponse: schemaResponse,
 	}
 
-	m.monitorService(serviceInfo, schemaResponse)
+	//m.monitorService(serviceInfo, schemaResponse)
 }
