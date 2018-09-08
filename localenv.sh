@@ -10,4 +10,4 @@ export CLIENT_ID=dukfaar-cloud-internal
 export CLIENT_SECRET='i am a ninja cat'
 export API_GATEWAY_HOST=localhost
 export API_GATEWAY_PORT=8090
-export API_GATEWAY_PATH=//graphql
+export API_GATEWAY_PATH=/graphql

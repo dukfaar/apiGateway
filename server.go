@@ -164,7 +164,6 @@ func main() {
 		w.Header().Add("Content-Type", "application/json; charset=utf-8")
 		buff, _ := json.Marshal(result)
 
-		fmt.Println(result)
 		w.Write(buff)
 	})
 
