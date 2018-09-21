@@ -220,6 +220,8 @@ func main() {
 			socketResponse.Id = socketRequest.Id
 			socketResponse.Type = socketRequest.Type
 
+			sendComplete := false
+
 			switch socketRequest.Type {
 			case "connection_init":
 				var connectionParams map[string]interface{}
@@ -254,6 +256,8 @@ func main() {
 				}
 				socketResponse.Type = "data"
 				socketResponse.Payload = graphql.Do(params)
+
+				sendComplete = true
 			case "stop":
 				continue
 			default:
@@ -269,6 +273,23 @@ func main() {
 			if err = connection.WriteMessage(msgType, responseJSON); err != nil {
 				errorResponse, _ := json.Marshal(err)
 				connection.WriteMessage(msgType, errorResponse)
+			} else {
+				if sendComplete {
+					var completeResponse struct {
+						Id   string `json:"id,omitempty"`
+						Type string `json:"type,omitempty"`
+					}
+
+					completeResponse.Id = socketRequest.Id
+					completeResponse.Type = "complete"
+
+					completeJSON, err := json.Marshal(completeResponse)
+					if err != nil {
+						errorResponse, _ := json.Marshal(err)
+						connection.WriteMessage(msgType, errorResponse)
+					}
+					connection.WriteMessage(msgType, completeJSON)
+				}
 			}
 		}
 	})
