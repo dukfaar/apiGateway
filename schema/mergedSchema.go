@@ -191,22 +191,36 @@ func setJSONHeaders(request *http.Request) {
 func getQueryArgs(p graphql.ResolveParams) string {
 	variableDefs := p.Info.Operation.GetVariableDefinitions()
 
-	//TODO, only add variables that are used for this query
+	argUsage := make(map[string]bool)
+
+	for _, field := range p.Info.FieldASTs {
+		for _, argument := range field.Arguments {
+			if argument.Value.GetKind() == "Variable" {
+				argUsage[argument.Value.GetValue().(*ast.Name).Value] = true
+			}
+		}
+	}
+
 	if len(variableDefs) > 0 {
 		varStrings := make([]string, 0)
 		for i := range variableDefs {
 			varDef := variableDefs[i]
+			varName := varDef.Variable.Name.Value
 
-			varStrings = append(varStrings, string(varDef.Loc.Source.Body)[varDef.Loc.Start:varDef.Loc.End])
+			if argUsage[varName] {
+				varStrings = append(varStrings, string(varDef.Loc.Source.Body)[varDef.Loc.Start:varDef.Loc.End])
+			}
 		}
 
-		return "(" + strings.Join(varStrings, ",") + ")"
+		if len(varStrings) > 0 {
+			return "(" + strings.Join(varStrings, ",") + ")"
+		} else {
+			return ""
+		}
 	}
 
 	return ""
 }
-
-//TODO instead of flat chacking, build a list of used fragments
 
 type FragmentChecker struct {
 	Fragments     map[string]ast.Definition
@@ -216,7 +230,7 @@ type FragmentChecker struct {
 func (c *FragmentChecker) MarkFragmentSpread(fragmentSpread *ast.FragmentSpread) {
 	c.UsedFragments[fragmentSpread.Name.Value] = true
 
-	//TODO follow fragment to mark those as well
+	c.MarkSelectionSet(c.Fragments[fragmentSpread.Name.Value].GetSelectionSet())
 }
 
 func (c *FragmentChecker) MarkSelection(selection ast.Selection) {
@@ -257,7 +271,6 @@ func getFragments(p graphql.ResolveParams) string {
 		Fragments:     p.Info.Fragments,
 		UsedFragments: make(map[string]bool),
 	}
-	//TODO only call MarkField for the field of the current query
 	checker.MarkFields(p)
 
 	for fragmentName := range p.Info.Fragments {
