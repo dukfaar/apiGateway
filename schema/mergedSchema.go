@@ -208,54 +208,60 @@ func getQueryArgs(p graphql.ResolveParams) string {
 
 //TODO instead of flat chacking, build a list of used fragments
 
-func CheckFragmentSpread(fragmentName string, fragmentSpread *ast.FragmentSpread) bool {
-	if fragmentSpread.Name.Value == fragmentName {
-		return true
-	}
-
-	//TODO follow fragment if this fragment uses
-
-	return false
+type FragmentChecker struct {
+	Fragments     map[string]ast.Definition
+	UsedFragments map[string]bool
 }
 
-func CheckSelection(fragmentName string, selection ast.Selection) bool {
+func (c *FragmentChecker) MarkFragmentSpread(fragmentSpread *ast.FragmentSpread) {
+	c.UsedFragments[fragmentSpread.Name.Value] = true
+
+	//TODO follow fragment to mark those as well
+}
+
+func (c *FragmentChecker) MarkSelection(selection ast.Selection) {
 	switch selection.(type) {
 	case *ast.FragmentSpread:
-		return CheckFragmentSpread(fragmentName, selection.(*ast.FragmentSpread))
+		c.MarkFragmentSpread(selection.(*ast.FragmentSpread))
+	case *ast.Field:
+		c.MarkField(selection.(*ast.Field))
 	default:
-		fmt.Println("Unknown type: " + reflect.TypeOf(selection).Name())
+		fmt.Println("Unknown type: ")
+		fmt.Println(reflect.TypeOf(selection))
 		panic(1)
 	}
 }
 
-func CheckSelectionSet(fragmentName string, selectionSet *ast.SelectionSet) bool {
+func (c *FragmentChecker) MarkSelectionSet(selectionSet *ast.SelectionSet) {
 	for _, selection := range selectionSet.Selections {
-		if CheckSelection(fragmentName, selection) {
-			return true
-		}
+		c.MarkSelection(selection)
 	}
-	return false
 }
 
-func CheckField(fragmentName string, field *ast.Field) bool {
-	return CheckSelectionSet(fragmentName, field.SelectionSet)
+func (c *FragmentChecker) MarkField(field *ast.Field) {
+	if field.SelectionSet != nil {
+		c.MarkSelectionSet(field.SelectionSet)
+	}
 }
 
-func IsFragmentUsed(fragmentName string, p graphql.ResolveParams) bool {
+func (c *FragmentChecker) MarkFields(p graphql.ResolveParams) {
 	for _, field := range p.Info.FieldASTs {
-		if CheckField(fragmentName, field) {
-			return true
-		}
+		c.MarkField(field)
 	}
-
-	return false
 }
 
 func getFragments(p graphql.ResolveParams) string {
 	fragments := ""
 
+	checker := &FragmentChecker{
+		Fragments:     p.Info.Fragments,
+		UsedFragments: make(map[string]bool),
+	}
+	//TODO only call MarkField for the field of the current query
+	checker.MarkFields(p)
+
 	for fragmentName := range p.Info.Fragments {
-		if IsFragmentUsed(fragmentName, p) {
+		if checker.UsedFragments[fragmentName] {
 			loc := p.Info.Fragments[fragmentName].GetLoc()
 			fragments += string(loc.Source.Body[loc.Start:loc.End])
 		}
