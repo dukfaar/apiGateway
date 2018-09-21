@@ -201,9 +201,9 @@ func main() {
 			}
 
 			var socketRequest struct {
-				Id      string             `json:"id,omitempty"`
-				Type    string             `json:"type,omitempty"`
-				Payload dukGraphql.Request `json:"payload,omitempty"`
+				Id      string          `json:"id,omitempty"`
+				Type    string          `json:"type,omitempty"`
+				Payload json.RawMessage `json:"payload,omitempty"`
 			}
 
 			if err = json.Unmarshal(message, &socketRequest); err != nil {
@@ -222,16 +222,34 @@ func main() {
 
 			switch socketRequest.Type {
 			case "connection_init":
+				var connectionParams map[string]interface{}
+				err := json.Unmarshal(socketRequest.Payload, &connectionParams)
+				if err != nil {
+					fmt.Printf("Error parsing payload %v: %v\n", string(socketRequest.Payload), err)
+					continue
+				}
+
+				var authToken = connectionParams["Authentication"]
+				if authToken != nil {
+					ctx = context.WithValue(ctx, "Authentication", authToken.(string))
+				}
+
 				socketResponse.Type = "connection_ack"
 				socketResponse.Payload = "ACK"
 			case "connection_terminate":
 				return
 			case "start":
+				var payload dukGraphql.Request
+				err := json.Unmarshal(socketRequest.Payload, &payload)
+				if err != nil {
+					fmt.Printf("Error parsing payload %v: %v\n", string(socketRequest.Payload), err)
+					continue
+				}
 				params := graphql.Params{
 					Schema:         newServiceProcessor.CurrentSchema,
-					RequestString:  socketRequest.Payload.Query,
-					VariableValues: socketRequest.Payload.Variables,
-					OperationName:  socketRequest.Payload.OperationName,
+					RequestString:  payload.Query,
+					VariableValues: payload.Variables,
+					OperationName:  payload.OperationName,
 					Context:        ctx,
 				}
 				socketResponse.Type = "data"
