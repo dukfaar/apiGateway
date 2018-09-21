@@ -111,6 +111,41 @@ func GetAuthValue(r *http.Request) string {
 	return ""
 }
 
+type SimpleResponse struct {
+	Id   string `json:"id,omitempty"`
+	Type string `json:"type,omitempty"`
+}
+
+type PayloadResponse struct {
+	SimpleResponse
+	Payload interface{} `json:"payload,omitempty"`
+}
+
+func send(r interface{}, connection *websocket.Conn, msgType int) error {
+	responseJSON, err := json.Marshal(r)
+	if err != nil {
+		errorResponse, _ := json.Marshal(err)
+		connection.WriteMessage(msgType, errorResponse)
+		return err
+	}
+
+	if err = connection.WriteMessage(msgType, responseJSON); err != nil {
+		errorResponse, _ := json.Marshal(err)
+		connection.WriteMessage(msgType, errorResponse)
+		return err
+	}
+
+	return nil
+}
+
+func (r *SimpleResponse) Send(connection *websocket.Conn, msgType int) error {
+	return send(r, connection, msgType)
+}
+
+func (r *PayloadResponse) Send(connection *websocket.Conn, msgType int) error {
+	return send(r, connection, msgType)
+}
+
 func main() {
 	nsqEventbus := eventbus.NewNsqEventBus(env.GetDefaultEnvVar("NSQD_TCP_URL", "localhost:4150"), env.GetDefaultEnvVar("NSQLOOKUP_HTTP_URL", "localhost:4161"))
 
@@ -211,17 +246,6 @@ func main() {
 				connection.WriteMessage(msgType, errorResponse)
 			}
 
-			var socketResponse struct {
-				Id      string      `json:"id,omitempty"`
-				Type    string      `json:"type,omitempty"`
-				Payload interface{} `json:"payload,omitempty"`
-			}
-
-			socketResponse.Id = socketRequest.Id
-			socketResponse.Type = socketRequest.Type
-
-			sendComplete := false
-
 			switch socketRequest.Type {
 			case "connection_init":
 				var connectionParams map[string]interface{}
@@ -236,8 +260,11 @@ func main() {
 					ctx = context.WithValue(ctx, "Authentication", authToken.(string))
 				}
 
+				var socketResponse PayloadResponse
+				socketResponse.Id = socketRequest.Id
 				socketResponse.Type = "connection_ack"
 				socketResponse.Payload = "ACK"
+				socketResponse.Send(connection, msgType)
 			case "connection_terminate":
 				return
 			case "start":
@@ -254,42 +281,20 @@ func main() {
 					OperationName:  payload.OperationName,
 					Context:        ctx,
 				}
+				var socketResponse PayloadResponse
+				socketResponse.Id = socketRequest.Id
 				socketResponse.Type = "data"
 				socketResponse.Payload = graphql.Do(params)
+				socketResponse.Send(connection, msgType)
 
-				sendComplete = true
+				var completeResponse SimpleResponse
+				completeResponse.Id = socketRequest.Id
+				completeResponse.Type = "complete"
+				completeResponse.Send(connection, msgType)
 			case "stop":
 				continue
 			default:
 				panic("Unknown socket-request-type: " + socketRequest.Type)
-			}
-
-			responseJSON, err := json.Marshal(socketResponse)
-			if err != nil {
-				errorResponse, _ := json.Marshal(err)
-				connection.WriteMessage(msgType, errorResponse)
-			}
-
-			if err = connection.WriteMessage(msgType, responseJSON); err != nil {
-				errorResponse, _ := json.Marshal(err)
-				connection.WriteMessage(msgType, errorResponse)
-			} else {
-				if sendComplete {
-					var completeResponse struct {
-						Id   string `json:"id,omitempty"`
-						Type string `json:"type,omitempty"`
-					}
-
-					completeResponse.Id = socketRequest.Id
-					completeResponse.Type = "complete"
-
-					completeJSON, err := json.Marshal(completeResponse)
-					if err != nil {
-						errorResponse, _ := json.Marshal(err)
-						connection.WriteMessage(msgType, errorResponse)
-					}
-					connection.WriteMessage(msgType, completeJSON)
-				}
 			}
 		}
 	})
