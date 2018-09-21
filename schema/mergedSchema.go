@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
@@ -205,13 +206,59 @@ func getQueryArgs(p graphql.ResolveParams) string {
 	return ""
 }
 
+//TODO instead of flat chacking, build a list of used fragments
+
+func CheckFragmentSpread(fragmentName string, fragmentSpread *ast.FragmentSpread) bool {
+	if fragmentSpread.Name.Value == fragmentName {
+		return true
+	}
+
+	//TODO follow fragment if this fragment uses
+
+	return false
+}
+
+func CheckSelection(fragmentName string, selection ast.Selection) bool {
+	switch selection.(type) {
+	case *ast.FragmentSpread:
+		return CheckFragmentSpread(fragmentName, selection.(*ast.FragmentSpread))
+	default:
+		fmt.Println("Unknown type: " + reflect.TypeOf(selection).Name())
+		panic(1)
+	}
+}
+
+func CheckSelectionSet(fragmentName string, selectionSet *ast.SelectionSet) bool {
+	for _, selection := range selectionSet.Selections {
+		if CheckSelection(fragmentName, selection) {
+			return true
+		}
+	}
+	return false
+}
+
+func CheckField(fragmentName string, field *ast.Field) bool {
+	return CheckSelectionSet(fragmentName, field.SelectionSet)
+}
+
+func IsFragmentUsed(fragmentName string, p graphql.ResolveParams) bool {
+	for _, field := range p.Info.FieldASTs {
+		if CheckField(fragmentName, field) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func getFragments(p graphql.ResolveParams) string {
 	fragments := ""
 
-	//TODO, only add fragments that are used for this query
 	for fragmentName := range p.Info.Fragments {
-		loc := p.Info.Fragments[fragmentName].GetLoc()
-		fragments += string(loc.Source.Body[loc.Start:loc.End])
+		if IsFragmentUsed(fragmentName, p) {
+			loc := p.Info.Fragments[fragmentName].GetLoc()
+			fragments += string(loc.Source.Body[loc.Start:loc.End])
+		}
 	}
 
 	return fragments
