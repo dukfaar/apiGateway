@@ -19,9 +19,11 @@ import (
 )
 
 type MergedSchemas struct {
-	serviceSchemas map[string]RemoteSchema
-	types          map[string]*graphql.Object
-	inputTypes     map[string]*graphql.InputObject
+	serviceSchemas    map[string]RemoteSchema
+	types             map[string]*graphql.Object
+	inputTypes        map[string]*graphql.InputObject
+	typeExtensions    map[string]map[string]bool
+	serviceInfoByType map[string]eventbus.ServiceInfo
 }
 
 func serializeDate(value interface{}) interface{} {
@@ -107,7 +109,7 @@ func (m *MergedSchemas) getTypeDefinition(fieldType *FieldType) graphql.Output {
 	}
 }
 
-func (m *MergedSchemas) scanTypes(typeList []Type) {
+func (m *MergedSchemas) scanTypes(typeList []Type, serviceInfo eventbus.ServiceInfo) {
 	for i := range typeList {
 		schemaType := typeList[i]
 
@@ -130,6 +132,7 @@ func (m *MergedSchemas) scanTypes(typeList []Type) {
 
 			if m.types[schemaType.Name] == nil {
 				m.types[schemaType.Name] = newObject
+				m.serviceInfoByType[schemaType.Name] = serviceInfo
 			}
 		default:
 			panic("Unknown kind " + schemaType.Kind)
@@ -164,11 +167,89 @@ func (m *MergedSchemas) scanInputTypes(typeList []Type) {
 	}
 }
 
-func getSourceBody(p graphql.ResolveParams) string {
-	if len(p.Info.FieldASTs) > 0 {
-		queryField := p.Info.FieldASTs[0]
+func (m *MergedSchemas) getSourceBodyFromSelection(selection ast.Selection, parentTypename string) string {
+	switch selection.(type) {
+	case *ast.Field:
+		field := selection.(*ast.Field)
+		if m.typeExtensions[parentTypename] != nil {
+			if m.typeExtensions[parentTypename][field.Name.Value] {
+				//TODO return the required fields to resolve this instead
+				return ""
+			}
+		}
+		fieldType := m.types[parentTypename].Fields()[field.Name.Value]
+		return m.getSourceBodyFromField(selection.(*ast.Field), getOutputTypeName(fieldType.Type))
+	default:
+		fmt.Printf("Unknown selection type: %+v\n", selection)
+		return ""
+	}
+}
 
-		return string(queryField.Loc.Source.Body)[queryField.Loc.Start:queryField.Loc.End]
+func (m *MergedSchemas) getSourceBodyFromSelectionSet(selectionSet *ast.SelectionSet, parentTypename string) string {
+	results := make([]string, 0)
+
+	for _, selection := range selectionSet.Selections {
+		selectionString := m.getSourceBodyFromSelection(selection, parentTypename)
+		if selectionString != "" {
+			results = append(results, selectionString)
+		}
+	}
+
+	return strings.Join(results, " ")
+}
+
+func (m *MergedSchemas) getSourceBodyFromField(field *ast.Field, returnType string) string {
+	resultString := ""
+	resultString += field.Name.Value
+
+	argumentList := make([]string, 0)
+	for _, argument := range field.Arguments {
+		switch argument.Value.(type) {
+		case *ast.StringValue:
+			argumentList = append(argumentList, argument.Name.Value+": \""+argument.Value.GetValue().(string)+"\"")
+		case *ast.IntValue:
+			argumentList = append(argumentList, argument.Name.Value+": "+argument.Value.GetValue().(string))
+		case *ast.FloatValue:
+			argumentList = append(argumentList, argument.Name.Value+": "+argument.Value.GetValue().(string))
+		case *ast.BooleanValue:
+			argumentList = append(argumentList, argument.Name.Value+": "+argument.Value.GetValue().(string))
+		default:
+			fmt.Printf("Unsupported argument Type: %+v\n", argument.Value.GetKind())
+		}
+
+	}
+
+	if len(argumentList) > 0 {
+		resultString += "(" + strings.Join(argumentList, ",") + ")"
+	}
+
+	if field.SelectionSet != nil {
+		resultString += "{" + m.getSourceBodyFromSelectionSet(field.SelectionSet, returnType) + "}"
+	}
+	return resultString
+}
+
+func getOutputTypeName(output graphql.Output) string {
+	switch output.(type) {
+	case *graphql.Scalar:
+		return output.(*graphql.Scalar).Name()
+	case *graphql.Object:
+		return output.(*graphql.Object).Name()
+	//case *graphql.Interface:
+	//case *graphql.Union:
+	//case *graphql.Enum:
+	case *graphql.List:
+		return getOutputTypeName(output.(*graphql.List).OfType)
+	case *graphql.NonNull:
+		return getOutputTypeName(output.(*graphql.NonNull).OfType)
+	default:
+		panic("Unsupported Outputtype " + fmt.Sprintf("%+v", reflect.TypeOf(output)))
+	}
+}
+
+func (m *MergedSchemas) getSourceBody(p graphql.ResolveParams) string {
+	if len(p.Info.FieldASTs) > 0 {
+		return m.getSourceBodyFromField(p.Info.FieldASTs[0], getOutputTypeName(p.Info.ReturnType))
 	}
 
 	return ""
@@ -214,54 +295,12 @@ func getQueryArgs(p graphql.ResolveParams) string {
 
 		if len(varStrings) > 0 {
 			return "(" + strings.Join(varStrings, ",") + ")"
-		} else {
-			return ""
 		}
+
+		return ""
 	}
 
 	return ""
-}
-
-type FragmentChecker struct {
-	Fragments     map[string]ast.Definition
-	UsedFragments map[string]bool
-}
-
-func (c *FragmentChecker) MarkFragmentSpread(fragmentSpread *ast.FragmentSpread) {
-	c.UsedFragments[fragmentSpread.Name.Value] = true
-
-	c.MarkSelectionSet(c.Fragments[fragmentSpread.Name.Value].GetSelectionSet())
-}
-
-func (c *FragmentChecker) MarkSelection(selection ast.Selection) {
-	switch selection.(type) {
-	case *ast.FragmentSpread:
-		c.MarkFragmentSpread(selection.(*ast.FragmentSpread))
-	case *ast.Field:
-		c.MarkField(selection.(*ast.Field))
-	default:
-		fmt.Println("Unknown type: ")
-		fmt.Println(reflect.TypeOf(selection))
-		panic(1)
-	}
-}
-
-func (c *FragmentChecker) MarkSelectionSet(selectionSet *ast.SelectionSet) {
-	for _, selection := range selectionSet.Selections {
-		c.MarkSelection(selection)
-	}
-}
-
-func (c *FragmentChecker) MarkField(field *ast.Field) {
-	if field.SelectionSet != nil {
-		c.MarkSelectionSet(field.SelectionSet)
-	}
-}
-
-func (c *FragmentChecker) MarkFields(p graphql.ResolveParams) {
-	for _, field := range p.Info.FieldASTs {
-		c.MarkField(field)
-	}
 }
 
 func getFragments(p graphql.ResolveParams) string {
@@ -314,12 +353,13 @@ func handleRequestResult(p graphql.ResolveParams, resp *http.Response, err error
 		errorString, _ := json.Marshal(result["errors"])
 		return nil, errors.New(string(errorString))
 	}
+
 	return result["data"].(map[string]interface{})[p.Info.FieldName], nil
 }
 
-func createQueryResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveParams) (interface{}, error) {
+func (m *MergedSchemas) createQueryResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveParams) (interface{}, error) {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		query := "query" + getQueryArgs(p) + " {" + getSourceBody(p) + "}" + getFragments(p)
+		query := "query" + getQueryArgs(p) + " {" + m.getSourceBody(p) + "}" + getFragments(p)
 
 		resp, err := performRequest(serviceInfo, p, query)
 
@@ -327,9 +367,39 @@ func createQueryResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveP
 	}
 }
 
-func createMutationResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveParams) (interface{}, error) {
+func (m *MergedSchemas) createExtensionQueryResolver(serviceInfo eventbus.ServiceInfo, field eventbus.FieldType) func(graphql.ResolveParams) (interface{}, error) {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		mutation := "mutation " + getQueryArgs(p) + "{" + getSourceBody(p) + "}" + getFragments(p)
+		query := "query {"
+
+		query += field.Resolve.By
+
+		if len(field.Resolve.FieldArguments) > 0 {
+			arguments := make([]string, 0)
+
+			source := p.Source.(map[string]interface{})
+
+			for argument, resolveBy := range field.Resolve.FieldArguments {
+				arguments = append(arguments, fmt.Sprintf("%v:%#v", argument, source[resolveBy]))
+			}
+
+			query += "(" + strings.Join(arguments, ",") + ")"
+		}
+
+		if p.Info.FieldASTs[0].SelectionSet != nil {
+			query += "{" + m.getSourceBodyFromSelectionSet(p.Info.FieldASTs[0].SelectionSet, field.Type) + "}"
+		}
+
+		query += "}"
+
+		resp, err := performRequest(serviceInfo, p, query)
+
+		return handleRequestResult(p, resp, err)
+	}
+}
+
+func (m *MergedSchemas) createMutationResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveParams) (interface{}, error) {
+	return func(p graphql.ResolveParams) (interface{}, error) {
+		mutation := "mutation " + getQueryArgs(p) + "{" + m.getSourceBody(p) + "}" + getFragments(p)
 
 		resp, err := performRequest(serviceInfo, p, mutation)
 
@@ -376,9 +446,9 @@ func (m *MergedSchemas) scanTypeFields(typeList []Type, serviceInfo eventbus.Ser
 				fieldDefinition.Name = field.Name
 				fieldDefinition.Type = m.getTypeDefinition(&field.Type)
 				if schemaType.Name == "Query" {
-					fieldDefinition.Resolve = createQueryResolver(serviceInfo)
+					fieldDefinition.Resolve = m.createQueryResolver(serviceInfo)
 				} else if schemaType.Name == "Mutation" {
-					fieldDefinition.Resolve = createMutationResolver(serviceInfo)
+					fieldDefinition.Resolve = m.createMutationResolver(serviceInfo)
 				} else {
 					fieldDefinition.Resolve = func(p graphql.ResolveParams) (interface{}, error) {
 						result := p.Source.(map[string]interface{})[p.Info.FieldName]
@@ -398,15 +468,58 @@ func (m *MergedSchemas) scanTypeFields(typeList []Type, serviceInfo eventbus.Ser
 	}
 }
 
+func (m *MergedSchemas) scanTypeExtensionField(extendingType *graphql.Object, field eventbus.FieldType) {
+	targetType := m.types[field.Type]
+	if targetType == nil {
+		return
+	}
+
+	var fieldDefinition graphql.Field
+	fieldDefinition.Name = field.Name
+	fieldDefinition.Type = targetType
+	fieldDefinition.Resolve = m.createExtensionQueryResolver(m.serviceInfoByType[targetType.Name()], field)
+
+	extendingType.AddFieldConfig(field.Name, &fieldDefinition)
+
+	if m.typeExtensions[extendingType.Name()] == nil {
+		m.typeExtensions[extendingType.Name()] = make(map[string]bool)
+	}
+	m.typeExtensions[extendingType.Name()][field.Name] = true
+}
+
+func (m *MergedSchemas) scanTypeExtension(extension eventbus.SchemaExtension) {
+	extendingType := m.types[extension.Type]
+
+	if extendingType == nil {
+		return
+	}
+
+	for _, field := range extension.Fields {
+		m.scanTypeExtensionField(extendingType, field)
+	}
+}
+
+func (m *MergedSchemas) scanTypeExtensions(serviceInfo eventbus.ServiceInfo) {
+	for _, extension := range serviceInfo.SchemaExtensions {
+		m.scanTypeExtension(extension)
+	}
+}
+
 func (m *MergedSchemas) BuildSchema() (graphql.Schema, error) {
 	m.types = make(map[string]*graphql.Object)
 	m.inputTypes = make(map[string]*graphql.InputObject)
+	m.typeExtensions = make(map[string]map[string]bool)
+	m.serviceInfoByType = make(map[string]eventbus.ServiceInfo)
 
 	for i := range m.serviceSchemas {
 		remoteSchema := m.serviceSchemas[i]
-		m.scanTypes(remoteSchema.SchemaResponse.Data.Schema.Types)
+		m.scanTypes(remoteSchema.SchemaResponse.Data.Schema.Types, remoteSchema.ServiceInfo)
 		m.scanInputTypes(remoteSchema.SchemaResponse.Data.Schema.Types)
 		m.scanTypeFields(remoteSchema.SchemaResponse.Data.Schema.Types, remoteSchema.ServiceInfo)
+	}
+
+	for i := range m.serviceSchemas {
+		m.scanTypeExtensions(m.serviceSchemas[i].ServiceInfo)
 	}
 
 	schemaConfig := graphql.SchemaConfig{
