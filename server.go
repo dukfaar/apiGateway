@@ -31,6 +31,7 @@ type ServiceProcessor struct {
 }
 
 func (p *ServiceProcessor) processResponse(serviceInfo eventbus.ServiceInfo, response schema.Response) {
+	fmt.Printf("Adding service: %v\n", serviceInfo.Name)
 	p.MergedSchemas.AddService(serviceInfo, response)
 
 	newCurrentSchema, err := p.MergedSchemas.BuildSchema()
@@ -41,6 +42,7 @@ func (p *ServiceProcessor) processResponse(serviceInfo eventbus.ServiceInfo, res
 	}
 
 	p.CurrentSchema = newCurrentSchema
+	fmt.Printf("Done adding service: %v\n", serviceInfo.Name)
 }
 
 func (p *ServiceProcessor) serviceUp(serviceInfo eventbus.ServiceInfo) {
@@ -162,7 +164,13 @@ func main() {
 
 	nsqEventbus.On("service.up", "apigateway_"+hostname, func(msg []byte) error {
 		newService := eventbus.ServiceInfo{}
-		json.Unmarshal(msg, &newService)
+		err := json.Unmarshal(msg, &newService)
+		if err != nil {
+			fmt.Printf("Error unmarshalling serviceInfo: ", string(msg))
+			return nil
+		}
+
+		fmt.Printf("received ServiceUp-Message: %+v\n", newService)
 
 		if newService.Name != "apigateway" && len(newService.GraphQLHttpEndpoint) > 0 {
 			newServiceProcessor.ServiceChannel <- newService
