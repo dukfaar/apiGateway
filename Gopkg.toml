@@ -29,6 +29,10 @@
   branch = "master"
   name = "github.com/dukfaar/goUtils"
 
+[[constraint]]
+  branch = "master"
+  name = "github.com/graphql-go/graphql"
+
 [prune]
   go-tests = true
   unused-packages = true
