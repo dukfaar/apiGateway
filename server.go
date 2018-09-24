@@ -166,7 +166,7 @@ func main() {
 		newService := eventbus.ServiceInfo{}
 		err := json.Unmarshal(msg, &newService)
 		if err != nil {
-			fmt.Printf("Error unmarshalling serviceInfo: ", string(msg))
+			fmt.Printf("Error unmarshalling serviceInfo: %+v\n", string(msg))
 			return nil
 		}
 

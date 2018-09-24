@@ -109,61 +109,65 @@ func (m *MergedSchemas) getTypeDefinition(fieldType *FieldType) graphql.Output {
 	}
 }
 
+func (m *MergedSchemas) scanType(schemaType Type, serviceInfo eventbus.ServiceInfo) {
+	if schemaType.Kind == "SCALAR" || strings.HasPrefix(schemaType.Name, "__") {
+		return
+	}
+
+	switch schemaType.Kind {
+	case "SCALAR":
+		return
+	case "INPUT_OBJECT":
+		return
+	case "INTERFACE":
+		return
+	case "OBJECT":
+		newObject := graphql.NewObject(graphql.ObjectConfig{
+			Name:   schemaType.Name,
+			Fields: graphql.Fields{},
+		})
+
+		if m.types[schemaType.Name] == nil {
+			m.types[schemaType.Name] = newObject
+			m.serviceInfoByType[schemaType.Name] = serviceInfo
+		}
+	default:
+		panic("Unknown kind " + schemaType.Kind)
+	}
+}
+
 func (m *MergedSchemas) scanTypes(typeList []Type, serviceInfo eventbus.ServiceInfo) {
 	for i := range typeList {
-		schemaType := typeList[i]
+		m.scanType(typeList[i], serviceInfo)
+	}
+}
 
-		if schemaType.Kind == "SCALAR" || strings.HasPrefix(schemaType.Name, "__") {
-			continue
+func (m *MergedSchemas) scanInputType(schemaType Type) {
+	if schemaType.Kind == "INPUT_OBJECT" {
+		fields := graphql.InputObjectConfigFieldMap{}
+
+		for fieldIndex := range schemaType.InputFields {
+			field := schemaType.InputFields[fieldIndex]
+
+			fields[field.Name] = &graphql.InputObjectFieldConfig{
+				Type: m.getTypeDefinition(&field.Type),
+			}
 		}
 
-		switch schemaType.Kind {
-		case "SCALAR":
-			continue
-		case "INPUT_OBJECT":
-			continue
-		case "INTERFACE":
-			continue
-		case "OBJECT":
-			newObject := graphql.NewObject(graphql.ObjectConfig{
-				Name:   schemaType.Name,
-				Fields: graphql.Fields{},
-			})
+		newObject := graphql.NewInputObject(graphql.InputObjectConfig{
+			Name:   schemaType.Name,
+			Fields: fields,
+		})
 
-			if m.types[schemaType.Name] == nil {
-				m.types[schemaType.Name] = newObject
-				m.serviceInfoByType[schemaType.Name] = serviceInfo
-			}
-		default:
-			panic("Unknown kind " + schemaType.Kind)
+		if m.inputTypes[schemaType.Name] == nil {
+			m.inputTypes[schemaType.Name] = newObject
 		}
 	}
 }
 
 func (m *MergedSchemas) scanInputTypes(typeList []Type) {
 	for i := range typeList {
-		schemaType := typeList[i]
-
-		if schemaType.Kind == "INPUT_OBJECT" {
-			fields := graphql.InputObjectConfigFieldMap{}
-
-			for fieldIndex := range schemaType.InputFields {
-				field := schemaType.InputFields[fieldIndex]
-
-				fields[field.Name] = &graphql.InputObjectFieldConfig{
-					Type: m.getTypeDefinition(&field.Type),
-				}
-			}
-
-			newObject := graphql.NewInputObject(graphql.InputObjectConfig{
-				Name:   schemaType.Name,
-				Fields: fields,
-			})
-
-			if m.inputTypes[schemaType.Name] == nil {
-				m.inputTypes[schemaType.Name] = newObject
-			}
-		}
+		m.scanInputType(typeList[i])
 	}
 }
 
@@ -468,6 +472,15 @@ func (m *MergedSchemas) scanTypeFields(typeList []Type, serviceInfo eventbus.Ser
 	}
 }
 
+func (m *MergedSchemas) markExtensionField(typeName string, fieldName string) {
+	t := m.typeExtensions[typeName]
+	if t == nil {
+		t = make(map[string]bool)
+		m.typeExtensions[typeName] = t
+	}
+	t[fieldName] = true
+}
+
 func (m *MergedSchemas) scanTypeExtensionField(extendingType *graphql.Object, field eventbus.FieldType) {
 	targetType := m.types[field.Type]
 	if targetType == nil {
@@ -481,10 +494,7 @@ func (m *MergedSchemas) scanTypeExtensionField(extendingType *graphql.Object, fi
 
 	extendingType.AddFieldConfig(field.Name, &fieldDefinition)
 
-	if m.typeExtensions[extendingType.Name()] == nil {
-		m.typeExtensions[extendingType.Name()] = make(map[string]bool)
-	}
-	m.typeExtensions[extendingType.Name()][field.Name] = true
+	m.markExtensionField(extendingType.Name(), field.Name)
 }
 
 func (m *MergedSchemas) scanTypeExtension(extension eventbus.SchemaExtension) {
