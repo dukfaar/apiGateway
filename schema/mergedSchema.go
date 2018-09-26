@@ -300,43 +300,69 @@ func handleRequestResult(p graphql.ResolveParams, resp *http.Response, err error
 	return result["data"].(map[string]interface{})[p.Info.FieldName], nil
 }
 
+type ThunkResultType struct {
+	data interface{}
+	err  error
+}
+
+func createThunkResolver(ch chan *ThunkResultType) func() (interface{}, error) {
+	return func() (interface{}, error) {
+		r := <-ch
+		return r.data, r.err
+	}
+}
+
 func (m *MergedSchemas) createQueryResolver(serviceInfo eventbus.ServiceInfo) func(graphql.ResolveParams) (interface{}, error) {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		query := "query" + getQueryArgs(p) + " {" + m.getSourceBody(p) + "}" + getFragments(p)
+		ch := make(chan *ThunkResultType, 1)
+		go func() {
+			defer close(ch)
 
-		resp, err := performRequest(serviceInfo, p, query)
+			query := "query" + getQueryArgs(p) + " {" + m.getSourceBody(p) + "}" + getFragments(p)
 
-		return handleRequestResult(p, resp, err)
+			resp, err := performRequest(serviceInfo, p, query)
+
+			result, err := handleRequestResult(p, resp, err)
+			ch <- &ThunkResultType{data: result, err: err}
+		}()
+		return createThunkResolver(ch), nil
 	}
 }
 
 func (m *MergedSchemas) createExtensionQueryResolver(serviceInfo eventbus.ServiceInfo, field eventbus.FieldType) func(graphql.ResolveParams) (interface{}, error) {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		query := "query {"
+		ch := make(chan *ThunkResultType, 1)
+		go func() {
+			defer close(ch)
 
-		query += field.Resolve.By
+			query := "query {"
 
-		if len(field.Resolve.FieldArguments) > 0 {
-			arguments := make([]string, 0)
+			query += field.Resolve.By
 
-			source := p.Source.(map[string]interface{})
+			if len(field.Resolve.FieldArguments) > 0 {
+				arguments := make([]string, 0)
 
-			for argument, resolveBy := range field.Resolve.FieldArguments {
-				arguments = append(arguments, fmt.Sprintf("%v:%#v", argument, source[resolveBy]))
+				source := p.Source.(map[string]interface{})
+
+				for argument, resolveBy := range field.Resolve.FieldArguments {
+					arguments = append(arguments, fmt.Sprintf("%v:%#v", argument, source[resolveBy]))
+				}
+
+				query += "(" + strings.Join(arguments, ",") + ")"
 			}
 
-			query += "(" + strings.Join(arguments, ",") + ")"
-		}
+			if p.Info.FieldASTs[0].SelectionSet != nil {
+				query += "{" + m.getSourceBodyFromSelectionSet(p.Info.FieldASTs[0].SelectionSet, field.Type) + "}"
+			}
 
-		if p.Info.FieldASTs[0].SelectionSet != nil {
-			query += "{" + m.getSourceBodyFromSelectionSet(p.Info.FieldASTs[0].SelectionSet, field.Type) + "}"
-		}
+			query += "}"
 
-		query += "}"
+			resp, err := performRequest(serviceInfo, p, query)
 
-		resp, err := performRequest(serviceInfo, p, query)
-
-		return handleRequestResult(p, resp, err)
+			result, err := handleRequestResult(p, resp, err)
+			ch <- &ThunkResultType{data: result, err: err}
+		}()
+		return createThunkResolver(ch), nil
 	}
 }
 

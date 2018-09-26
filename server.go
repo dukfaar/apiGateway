@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/dukfaar/goUtils/env"
 	"github.com/dukfaar/goUtils/eventbus"
@@ -31,7 +32,6 @@ type ServiceProcessor struct {
 }
 
 func (p *ServiceProcessor) processResponse(serviceInfo eventbus.ServiceInfo, response schema.Response) {
-	fmt.Printf("Adding service: %v\n", serviceInfo.Name)
 	p.MergedSchemas.AddService(serviceInfo, response)
 
 	newCurrentSchema, err := p.MergedSchemas.BuildSchema()
@@ -42,7 +42,6 @@ func (p *ServiceProcessor) processResponse(serviceInfo eventbus.ServiceInfo, res
 	}
 
 	p.CurrentSchema = newCurrentSchema
-	fmt.Printf("Done adding service: %v\n", serviceInfo.Name)
 }
 
 func (p *ServiceProcessor) serviceUp(serviceInfo eventbus.ServiceInfo) {
@@ -170,8 +169,6 @@ func main() {
 			return nil
 		}
 
-		fmt.Printf("received ServiceUp-Message: %+v\n", newService)
-
 		if newService.Name != "apigateway" && len(newService.GraphQLHttpEndpoint) > 0 {
 			newServiceProcessor.ServiceChannel <- newService
 		}
@@ -180,6 +177,15 @@ func main() {
 	})
 
 	nsqEventbus.Emit("service.up", serviceInfo)
+
+	//send a refreshing call every 5 minutes until i have solution in my infrastructure
+	emissionTicker := time.NewTicker(time.Minute * 5)
+	go func() {
+		for {
+			<-emissionTicker.C
+			nsqEventbus.Emit("service.up", serviceInfo)
+		}
+	}()
 
 	http.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
 		body, _ := ioutil.ReadAll(r.Body)
