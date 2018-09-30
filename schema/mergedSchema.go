@@ -162,6 +162,15 @@ func getValueString(value ast.Value) string {
 		}
 
 		return "{" + strings.Join(fieldStrings, ",") + "}"
+	case *ast.ListValue:
+		fields := value.GetValue().([]ast.Value)
+		fieldStrings := make([]string, 0)
+
+		for _, field := range fields {
+			fieldStrings = append(fieldStrings, getValueString(field))
+		}
+
+		return "[" + strings.Join(fieldStrings, ",") + "]"
 	default:
 		fmt.Printf("Unsupported argument Type: %+v\n", value.GetKind())
 		return ""
