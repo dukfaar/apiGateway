@@ -141,25 +141,48 @@ func (m *MergedSchemas) getSourceBodyFromSelectionSet(selectionSet *ast.Selectio
 	return strings.Join(results, " ")
 }
 
+func getValueString(value ast.Value) string {
+	switch value.(type) {
+	case *ast.StringValue:
+		return "\"" + value.GetValue().(string) + "\""
+	case *ast.IntValue:
+		return value.GetValue().(string)
+	case *ast.FloatValue:
+		return value.GetValue().(string)
+	case *ast.BooleanValue:
+		return value.GetValue().(string)
+	case *ast.Variable:
+		return "$" + value.GetValue().(*ast.Name).Value
+	case *ast.ObjectValue:
+		fields := value.GetValue().([]*ast.ObjectField)
+		fieldStrings := make([]string, 0)
+
+		for _, field := range fields {
+			fieldStrings = append(fieldStrings, getObjectFieldString(field))
+		}
+
+		return "{" + strings.Join(fieldStrings, ",") + "}"
+	default:
+		fmt.Printf("Unsupported argument Type: %+v\n", value.GetKind())
+		return ""
+	}
+}
+
+func getObjectFieldString(argument *ast.ObjectField) string {
+	return argument.Name.Value + ": " + getValueString(argument.Value)
+}
+
+func getArgumentString(argument *ast.Argument) string {
+	return argument.Name.Value + ": " + getValueString(argument.Value)
+}
+
 func (m *MergedSchemas) getSourceBodyFromField(field *ast.Field, returnType string) string {
 	resultString := ""
 	resultString += field.Name.Value
 
 	argumentList := make([]string, 0)
 	for _, argument := range field.Arguments {
-		switch argument.Value.(type) {
-		case *ast.StringValue:
-			argumentList = append(argumentList, argument.Name.Value+": \""+argument.Value.GetValue().(string)+"\"")
-		case *ast.IntValue:
-			argumentList = append(argumentList, argument.Name.Value+": "+argument.Value.GetValue().(string))
-		case *ast.FloatValue:
-			argumentList = append(argumentList, argument.Name.Value+": "+argument.Value.GetValue().(string))
-		case *ast.BooleanValue:
-			argumentList = append(argumentList, argument.Name.Value+": "+argument.Value.GetValue().(string))
-		default:
-			fmt.Printf("Unsupported argument Type: %+v\n", argument.Value.GetKind())
-		}
-
+		argumentList = append(argumentList, getArgumentString(argument))
 	}
 
 	if len(argumentList) > 0 {
@@ -394,7 +417,7 @@ func (m *MergedSchemas) scanTypeFields(typeList []Type, serviceInfo eventbus.Ser
 	for i := range typeList {
 		schemaType := typeList[i]
 
-		if schemaType.Kind == "SCALAR" || strings.HasPrefix(schemaType.Name, "__") {
+		if strings.HasPrefix(schemaType.Name, "__") {
 			continue
 		}
 
