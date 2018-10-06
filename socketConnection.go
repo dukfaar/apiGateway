@@ -140,6 +140,8 @@ func (s *SocketConnection) processMessage(request *socketConnectionRequest, msgT
 }
 
 func (s *SocketConnection) ProcessMessages() {
+	fmt.Println("Start processing messages")
+	defer fmt.Println("Stop processing messages")
 	for {
 		if s.closed {
 			break

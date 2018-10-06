@@ -122,6 +122,9 @@ func (m *MergedSchemas) getSourceBodyFromSelection(selection ast.Selection, pare
 		}
 		fieldType := m.types[parentTypename].Fields()[field.Name.Value]
 		return m.getSourceBodyFromField(selection.(*ast.Field), getOutputTypeName(fieldType.Type))
+	case *ast.FragmentSpread:
+		fragmentSpread := selection.(*ast.FragmentSpread)
+		return "..." + fragmentSpread.Name.Value
 	default:
 		fmt.Printf("Unknown selection type: %+v\n", selection)
 		return ""

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
@@ -43,9 +44,13 @@ func (s *SocketHandler) createConnection(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *SocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	socketConnection, error := s.createConnection(w, r)
+	socketConnection, err := s.createConnection(w, r)
 
-	if error != nil {
-		go socketConnection.ProcessMessages()
+	if err != nil {
+		fmt.Printf("Error creating socket connection: %v\n", err)
+		return
 	}
+
+	fmt.Println("Created Socket connection")
+	go socketConnection.ProcessMessages()
 }
