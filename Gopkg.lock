@@ -3,40 +3,62 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:d6afaeed1502aa28e80a4ed0981d570ad91b2579193404256ce672ed0a609e0d"
   name = "github.com/beorn7/perks"
   packages = ["quantile"]
+  pruneopts = "UT"
   revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
 
 [[projects]]
   branch = "master"
+  digest = "1:2592f4a2f1a5cdfaee8409257e71cebb9d129bdb0929c8bb0352dd216c6a9d1f"
   name = "github.com/dukfaar/goUtils"
   packages = [
     "env",
     "eventbus",
-    "graphql"
+    "graphql",
   ]
-  revision = "8298546bdbc483106fed9246056198935f003964"
+  pruneopts = "UT"
+  revision = "85ee7bd345077081877bf5a91e9aa7520e46ce15"
 
 [[projects]]
+  branch = "master"
+  digest = "1:7fb51688eadf38272411852d7a2b3538c7caff53309abee6c0964a83c00fe69e"
+  name = "github.com/globalsign/mgo"
+  packages = [
+    "bson",
+    "internal/json",
+  ]
+  pruneopts = "UT"
+  revision = "eeefdecb41b842af6dc652aaea4026e8403e62df"
+
+[[projects]]
+  digest = "1:97df918963298c287643883209a2c3f642e6593379f97ab400c2a2e219ab647d"
   name = "github.com/golang/protobuf"
   packages = ["proto"]
+  pruneopts = "UT"
   revision = "aa810b61a9c79d51363740d207bb46cf8e620ed5"
   version = "v1.2.0"
 
 [[projects]]
   branch = "master"
+  digest = "1:4a0c6bb4805508a6287675fac876be2ac1182539ca8a32468d8128882e9d5009"
   name = "github.com/golang/snappy"
   packages = ["."]
+  pruneopts = "UT"
   revision = "2e65f85255dbc3072edf28d6b5b8efc472979f5a"
 
 [[projects]]
+  digest = "1:7b5c6e2eeaa9ae5907c391a91c132abfd5c9e8a784a341b5625e750c67e6825d"
   name = "github.com/gorilla/websocket"
   packages = ["."]
+  pruneopts = "UT"
   revision = "66b9c49e59c6c48f0ffce28c2d8b8a5678502c6d"
   version = "v1.4.0"
 
 [[projects]]
   branch = "master"
+  digest = "1:0f0e7b6217768103e589ffe3e960e0d01e34e561ede13634bea187938b12bb7a"
   name = "github.com/graph-gophers/graphql-go"
   packages = [
     ".",
@@ -51,12 +73,14 @@
     "internal/validation",
     "introspection",
     "log",
-    "trace"
+    "trace",
   ]
-  revision = "94da0f0031f9d30a1d56cd4b56e40852516c3301"
+  pruneopts = "UT"
+  revision = "940d2b01f2549ee5d9e87141ea909134bf56e3a9"
 
 [[projects]]
   branch = "master"
+  digest = "1:72b017d1056bb50bf448ad3cd4fb9fb82dee5c14cbde2b0f8be0f236d5ee22f3"
   name = "github.com/graphql-go/graphql"
   packages = [
     ".",
@@ -69,77 +93,103 @@
     "language/printer",
     "language/source",
     "language/typeInfo",
-    "language/visitor"
+    "language/visitor",
   ]
-  revision = "cc8e9a91d6b82f2f867446edb51e3f2454b5912b"
+  pruneopts = "UT"
+  revision = "a7e15c0298411af18c694ca387e733acef287104"
 
 [[projects]]
+  digest = "1:ff5ebae34cfbf047d505ee150de27e60570e8c394b3b8fdbb720ff6ac71985fc"
   name = "github.com/matttproud/golang_protobuf_extensions"
   packages = ["pbutil"]
+  pruneopts = "UT"
   revision = "c12348ce28de40eed0136aa2b644d0ee0650e56c"
   version = "v1.0.1"
 
 [[projects]]
+  digest = "1:bb48459ec76efe45f13094480296462ef5c9aaa56662918819b7a8fce3155b8b"
   name = "github.com/nsqio/go-nsq"
   packages = ["."]
+  pruneopts = "UT"
   revision = "eee57a3ac4174c55924125bb15eeeda8cffb6e6f"
   version = "v1.0.7"
 
 [[projects]]
+  digest = "1:450b7623b185031f3a456801155c8320209f75d0d4c4e633c6b1e59d44d6e392"
   name = "github.com/opentracing/opentracing-go"
   packages = [
     ".",
     "ext",
-    "log"
+    "log",
   ]
+  pruneopts = "UT"
   revision = "1949ddbfd147afd4d964a9f00b24eb291e0e7c38"
   version = "v1.0.2"
 
 [[projects]]
+  digest = "1:20a8a18488bdef471795af0413d9a3c9c35dc24ca93342329b884ba3c15cbaab"
   name = "github.com/prometheus/client_golang"
   packages = [
     "prometheus",
-    "prometheus/promhttp"
+    "prometheus/internal",
+    "prometheus/promhttp",
   ]
-  revision = "c5b7fccd204277076155f10851dad72b76a49317"
-  version = "v0.8.0"
+  pruneopts = "UT"
+  revision = "1cafe34db7fdec6022e17e00e1c1ea501022f3e4"
+  version = "v0.9.0"
 
 [[projects]]
   branch = "master"
+  digest = "1:2d5cd61daa5565187e1d96bae64dbbc6080dacf741448e9629c64fd93203b0d4"
   name = "github.com/prometheus/client_model"
   packages = ["go"]
+  pruneopts = "UT"
   revision = "5c3871d89910bfb32f5fcab2aa4b9ec68e65a99f"
 
 [[projects]]
   branch = "master"
+  digest = "1:db712fde5d12d6cdbdf14b777f0c230f4ff5ab0be8e35b239fc319953ed577a4"
   name = "github.com/prometheus/common"
   packages = [
     "expfmt",
     "internal/bitbucket.org/ww/goautoneg",
-    "model"
+    "model",
   ]
-  revision = "c7de2306084e37d54b8be01f3541a8464345e9a5"
+  pruneopts = "UT"
+  revision = "7e9e6cabbd393fc208072eedef99188d0ce788b6"
 
 [[projects]]
   branch = "master"
+  digest = "1:ef74914912f99c79434d9c09658274678bc85080ebe3ab32bec3940ebce5e1fc"
   name = "github.com/prometheus/procfs"
   packages = [
     ".",
     "internal/util",
     "nfs",
-    "xfs"
+    "xfs",
   ]
-  revision = "418d78d0b9a7b7de3a6bbc8a23def624cc977bb2"
+  pruneopts = "UT"
+  revision = "185b4288413d2a0dd0806f78c90dde719829e5ae"
 
 [[projects]]
   branch = "master"
+  digest = "1:76ee51c3f468493aff39dbacc401e8831fbb765104cbf613b89bef01cf4bad70"
   name = "golang.org/x/net"
   packages = ["context"]
-  revision = "2f5d2388922f370f4355f327fcf4cfe9f5583908"
+  pruneopts = "UT"
+  revision = "9b4f9f5ad5197c79fd623a3638e70d8b26cef344"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b130ac3cf9fc6f21cec9f1bf2bec893f0844f4b5aac0e37009cde3e2db72f93f"
+  input-imports = [
+    "github.com/dukfaar/goUtils/env",
+    "github.com/dukfaar/goUtils/eventbus",
+    "github.com/dukfaar/goUtils/graphql",
+    "github.com/gorilla/websocket",
+    "github.com/graphql-go/graphql",
+    "github.com/graphql-go/graphql/language/ast",
+    "github.com/prometheus/client_golang/prometheus/promhttp",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1
